@@ -22,8 +22,6 @@ contract Bet {
     uint256 public fee;
     uint public lowestFee;
     uint public highestFee;
-    
-
     enum BetStatus{ INITIATED, RUNNING, RESOLVED }
     BetStatus status;
     

@@ -1,0 +1,17 @@
+#modalHeader {
+    font-family: 'Trispace';
+    font-style: bold;
+    font-size:18px;
+}
+
+#modalReason {
+    font-family: 'Trispace';
+    font-style: bold;
+    font-size:20px;
+
+}
+
+#winnerHeader {
+    font-family: 'Fasthand', cursive;
+    font-size: 23px;
+}

@@ -1,8 +1,10 @@
 
 import React, {Component} from 'react'
-import {Modal, Header, Button, Icon, Table, Form, Input, Label, Segment, TableBody, TableCell, TableRow} from 'semantic-ui-react'
+import {Modal, Header, Button, Icon, Table, Form, Input, Label, Segment, TableBody, TableCell, TableRow, Menu} from 'semantic-ui-react'
 import Bet from '../contracts/Bet.json'
 import getWeb3 from '../ethereum/web3'
+import Web3 from 'web3'
+import './Modal.css'
 
 // import PropTypes from 'prop-types'
 
@@ -10,9 +12,13 @@ class BetModal extends Component {
     
     constructor(props){
         super(props)
-        console.log('props inside bet modal', props)
+        // console.log('props inside bet modal', props)
         
         this.state = {
+            keymasterAddress:'',
+            initiator:'',
+            acceptor:'',
+            keyMasterFee:'',
             gas:props.gas,
             betWinner:'',
             betInstance:null,
@@ -22,24 +28,69 @@ class BetModal extends Component {
             contractLocation:props.contractLocation,
             contractBalance:0,
             betStatus:null,
-            betReason:''
+            betReason:'',
+            
         }
     }
     
+
+    convertEth = async(_value) => {
+        let finalValue = Web3.utils.fromWei(_value, 'ether');
+        return await finalValue;
+    }
+    /**
+     * Storage reading : 
+     * [0] blockunbmer
+     * [1] initiator address
+     * [2] acceptor address
+     * [3] factory contract address
+     * [4] bet amount
+     * [5] bet reason (hexToAscii)
+     * [6] keymaster address (private)
+     * [7] initiator canceled (bool)
+     * [8] acceptor canceled (bool)
+     * [9] keymaster Fee
+     * 
+     */
+
     componentDidMount = async() => {
+        const web3 = this.state.web3
         const _betInstance = await new this.state.web3.eth.Contract(
             Bet.abi, this.state.contractLocation
         )
         let _contractBalance = await _betInstance.methods.getBalance().call({gas:this.state.gas})
         let _betStatus = await _betInstance.methods.getBetStatus().call({gas:this.state.gas})
         let _betReason = await _betInstance.methods.reason().call({gas:this.state.gas})
+        let finalValue = Web3.utils.fromWei(_contractBalance, 'ether')
         
-        this.setState({ betInstance:_betInstance, contractBalance:_contractBalance, betReason:_betReason,})
+        let _initiatorAddress = await web3.eth.getStorageAt(this.state.contractLocation, 1, (err,res) => {
+            if(err) throw err;
+            // let _res = Web3.utils.
+            return res;
+        });
+        let _acceptorAddress = await web3.eth.getStorageAt(this.state.contractLocation, 2, (err,res) => {
+            if(err) throw err;
+            return res
+        });
+        let _keyMasterAddress = await web3.eth.getStorageAt(this.state.contractLocation, 6, (err,res) => {
+            if(err) throw err;
+            //console.log(res)
+            return res
+        });
+
+        this.setState({ 
+            betInstance:_betInstance, 
+            contractBalance:finalValue, 
+            betReason:_betReason, 
+            initiator:_initiatorAddress,
+            acceptor:_acceptorAddress,
+            keymasterAddress:_keyMasterAddress
+        })
         this.getBetStatus()
     }
 
     confirmClick = (event, data) => {
-        console.log('state values : ' + this.state.betWinner)
+        //console.log('state values : ' + this.state.betWinner)
         this.props.handleClose();
     }
     resolveBet = (event, data) => {
@@ -49,8 +100,15 @@ class BetModal extends Component {
 
     acceptBet = async (event, data) => {
         try{
-            console.log(this.props)
+            //console.log(this.props)
             await this.state.betInstance.methods.acceptBet().send({from:this.props.syncedAddress[0], gas:this.state.gas, value:this.state.contractBalance})
+            .on('transactionHash', (hash) => {
+                console.log('transaction hash : ', hash)
+
+            })
+            .on('error', (err) => {
+                console.log('error : ',err )
+            })
         } catch(err){
             alert(await err.message)
 
@@ -60,8 +118,11 @@ class BetModal extends Component {
 
     agreedCancel = async(event, data) => {
         try{
-            console.log(this.state.gas)
+            //console.log(this.state.gas)
             await this.state.betInstance.methods.agreedCancel().call({from:this.props.syncedAddress[0], gas:this.state.gas})
+            .then((result) => {
+                console.log(result)
+            })
         } catch(err){
             alert(await err.message)
         }
@@ -80,7 +141,8 @@ class BetModal extends Component {
     getContractBalance = async(event, data) => {
         try{
             const _contractBalance = await this.state.betInstance.methods.getBalance().call({gas:this.state.gas}) 
-            this.setState({contractBalance:_contractBalance})
+            const final = Web3.utils.fromWei(_contractBalance, 'ether')
+            this.setState({contractBalance:final})
         } catch(err){
             alert(await err.message)
         }
@@ -111,81 +173,111 @@ class BetModal extends Component {
     }
 
     keyMasterSign = async(event, data) =>{
-        const _add = await this.state.myaddress
+        const _add = await this.state.storage
         console.log(_add)
     }
 
     render() {
         const {Cell, Row} = Table
-
+        const acceptor = this.state.acceptor
         return (
             <Modal
                 open={this.props.modalOpen}
                 size='small'
                 closeOnEscape={false}
+                id='wholeModal'
             >
-            <Header as={'h4'} conent={'confirm?'}>Bet : {this.state.contractLocation}</Header>
+            <Segment>
+                <Segment.Group style={{padding:'10px'}} raised>                
+                <Header id='modalHeader' as={'h3'} conent={'confirm?'}>Bet : {this.state.contractLocation}</Header>
+                </Segment.Group>
+            </Segment>
+            
                 <Modal.Content>
-                <Modal.Header><h4>Reason: {this.state.betReason}</h4></Modal.Header>
-                    <Table celled columns={4}>
-                        <Table.Body style={{overflow:'auto'}}>
-                            <Table.Row  mobile={16} tablet={8} computer={5} textAlign='center'>
-                                <Table.Cell><Button color='green' onClick={this.acceptBet}>Accept Bet</Button></Table.Cell>
-                                <Table.Cell><Button color = 'yellow' onClick={this.agreedCancel}>Aggreed Cancel</Button></Table.Cell>
-                                
-                                <Table.Cell>                                    
-                                <Form onSubmit={this.resolveBet}>                           
-                                    <Form.Group widths="equal">
-                                        <Form.Field
-                                            id="form-input-control-betWinner"
-                                            value={this.state.betWinner}
-                                            type='text'
-                                            control={Input}
-                                            maxLength='42'
-                                            label='Bet winner'
-                                            placeholder='0x00...00'
-                                            onChange={event => this.setState({betWinner:event.target.value})}
-                                        />
-                                       
+                <Segment raised>
+                    <Segment.Group> 
+                        <Menu secondary>
+                            <Menu.Item position='left'>
+                                <Modal.Header as={'h3'} id='modalReason'> Reason: {this.state.betReason}</Modal.Header>
+                            </Menu.Item>
+                            <Menu.Item position='right' as={'h4'}>
+                                <img alt='logo' src="./logo192.png"/>
+                            </Menu.Item>
+                        </Menu>
+                    </Segment.Group>
+                    <Segment.Group style={{padding:'3px'}}>
+                        <Header as={'h4'}>Initiator : {this.state.initiator}</Header>
+                    </Segment.Group>
+                    <Segment.Group style={{padding:'3px'}}>
+                        <Header as={'h4'}>Acceptor : {acceptor == '0x0' ? 'Not yet accepted' : this.state.acceptor}</Header>
+                    </Segment.Group>
+                    <Segment.Group style={{padding:'3px'}}>
+                        <Header as={'h4'}>KeyMaster : {this.state.keymasterAddress}</Header>
+                </Segment.Group>
+                </Segment>
+                    <Segment raised>
+                        <Segment.Group>
+                            <Table celled columns={4}>
+                                <Table.Body style={{overflow:'auto'}}>
+                                    <Table.Row  mobile={16} tablet={8} computer={5} textAlign='center'>
+                                        <Table.Cell><Button color='green' onClick={this.acceptBet}>Accept Bet</Button></Table.Cell>
+                                        <Table.Cell><Button color = 'yellow' onClick={this.agreedCancel}>Aggreed Cancel</Button></Table.Cell>
                                         
-                                        </Form.Group>
-                                        <Segment><Button color='red'>Resolve Bet</Button></Segment>
-                                    </Form>
-                                </Table.Cell>
-                            </Table.Row>
-                            <Table.Row textAlign='center'>
-                                <Table.Cell><Button onClick={this.revertBet}>Revert Bet</Button></Table.Cell>
-                                 <Table.Cell>
-                                    <Table.Row>
-                                        <Table.Cell>
-                                            <h4>{this.state.contractBalance}</h4>
+                                        <Table.Cell>                                    
+                                        <Form onSubmit={this.resolveBet}> 
+                                        <Segment >
+                                        <Header id='winnerHeader' as={'h4'}>Bet Winner</Header>                 
+                                            <Form.Group widths="equal"> 
+                                                <Form.Field
+                                                    id="form-input-control-betWinner"
+                                                    value={this.state.betWinner}
+                                                    type='text'
+                                                    control={Input}
+                                                    maxLength='42'
+                                                    placeholder='0x00...00'
+                                                    onChange={event => this.setState({betWinner:event.target.value})}
+                                                />   
+                                                </Form.Group>
+                                                </Segment>
+                                                <Segment><Button color='red'>Resolve Bet</Button></Segment>
+                                            </Form>
                                         </Table.Cell>
                                     </Table.Row>
-                                    <Table.Row>
-                                        <Table.Cell><Button onClick={this.getContractBalance}>Get Balance</Button></Table.Cell>
-                                    </Table.Row>
-                                </Table.Cell>
-                                
-                                <Table.Cell>
-                                    <Table.Row>
+                                    <Table.Row textAlign='center'>
+                                        <Table.Cell><Button onClick={this.revertBet}>Revert Bet</Button></Table.Cell>
                                         <Table.Cell>
-                                            <h4>{this.state.betStatus}</h4>                                            
+                                            <Table.Row>
+                                                <Table.Cell>
+                                                    <h4>{this.state.contractBalance} ⟠ Eth </h4>
+                                                </Table.Cell>
+                                            </Table.Row>
+                                            <Table.Row>
+                                                <Table.Cell><Button onClick={this.getContractBalance}>Get Balance</Button></Table.Cell>
+                                            </Table.Row>
                                         </Table.Cell>
-                                    </Table.Row>                                 
-                                    <Table.Row>
-                                        <Table.Cell><Button onClick={this.getBetStatus}>Get Status</Button></Table.Cell>
-                                    </Table.Row> 
-                                </Table.Cell>
-                            </Table.Row>
-                            <Table.Row textAlign='center'>
-                            <Table.Cell></Table.Cell>
-                                <Table.Cell>
-                                    <Button onClick={this.keyMasterSign}>I am the key master</Button>
-                                </Table.Cell>
-                            <Table.Cell></Table.Cell>
-                            </Table.Row>
-                        </Table.Body>
-                    </Table>
+                                        
+                                        <Table.Cell>
+                                            <Table.Row>
+                                                <Table.Cell>
+                                                    <h4>{this.state.betStatus}</h4>                                            
+                                                </Table.Cell>
+                                            </Table.Row>                                 
+                                            <Table.Row>
+                                                <Table.Cell><Button onClick={this.getBetStatus}>Get Status</Button></Table.Cell>
+                                            </Table.Row> 
+                                        </Table.Cell>
+                                    </Table.Row>
+                                    <Table.Row textAlign='center'>
+                                    <Table.Cell></Table.Cell>
+                                        <Table.Cell>
+                                            <Button onClick={this.keyMasterSign}>I am the key master</Button>
+                                        </Table.Cell>
+                                    <Table.Cell></Table.Cell>
+                                    </Table.Row>
+                                </Table.Body>
+                            </Table>
+                        </Segment.Group>
+                    </Segment>
                 </Modal.Content>
                 <Modal.Actions>
                     <Button

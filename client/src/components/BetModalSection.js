@@ -20,7 +20,7 @@ class BetModalSection extends Component {
             contractLocation : props.location,
             gas:props.gas
         }
-        console.log('inside modal section', props)
+
     }
 
     render(){

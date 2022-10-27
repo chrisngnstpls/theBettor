@@ -12,8 +12,8 @@ class BetRow extends Component {
         const {Row, Cell} = Table;
         const {id, location, initiator, accounts, gas, handleFromParent, web3} = this.props;
 
-        console.log(this.props)
-        console.log('user from betrow', accounts[0])
+        // console.log(this.props)
+        // console.log('user from betrow', accounts[0])
         return ([
                     <Table.Row key='betrow' textAlign='center'>
                         <Table.Cell colSpan='1'>{id}</Table.Cell>

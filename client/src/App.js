@@ -33,14 +33,28 @@ class App extends Component {
       const networkId = await web3.eth.net.getId();
       const deployedNetwork = BetFactory.networks[networkId];
       const betDeployedNetwork = Bet.networks[networkId];
+      
+      /***
+       * uncomment for local testnet
+       * 
+       */
+
+      // const factoryInstance = await new web3.eth.Contract(
+      //   BetFactory.abi, deployedNetwork && process.env.REACT_APP_FACTORY_CONTRACT_ADDRESS_GANACHE
+      // );
+
+      /***
+       * Uncomment for goerli testnet
+       * 
+       */
       const factoryInstance = await new web3.eth.Contract(
-        BetFactory.abi, deployedNetwork && process.env.REACT_APP_FACTORY_CONTRACT_ADDRESS
+        BetFactory.abi, process.env.REACT_APP_FACTORY_CONTRACT_ADDRESS_TESTNET
       );
       const syncedAddress = accounts[0]
 
       this.setState({web3, accounts, factoryInstance, syncedAddress});
       this.getAllBets()
-      .then(console.log('sss'))
+      .then(console.log('Bets loaded'))
 
     }catch(err){
       throw(err);
@@ -59,9 +73,40 @@ class App extends Component {
     event.preventDefault();
     // this does not work make sure to convert value to wei gwei or what have you *** error 32603
     const{accounts,gas, keyMaster, factoryInstance, fee, reason, betValue} = this.state
+
+    let correctAddress = Web3.utils.isAddress(keyMaster)
+    
+    const checkLength = (_length) =>{
+      if((_length.length > 1) && (_length.length < 127)){
+        return true 
+       } else {
+        return false
+       }
+    }
+
+    if((keyMaster != 0x0000000000000000000000000000000000000000) && (checkLength(reason)) && (betValue > 0.00001) && correctAddress) {
+      
+      try {
+        const cleanBet = Web3.utils.toWei(betValue, 'ether')
+        await factoryInstance.methods.createBet(reason, keyMaster, fee).send({from:accounts[0], gas:3000000, value:cleanBet})
+          .on('transactionHash', (hash) => {
+            console.log('Transaction hash :' ,hash)
+          })
+          .on('confirmation', (conf) => {
+            console.log('number of confirmations : ', conf)
+          })
+          .on('error', (err) => {
+            console.log(err)
+          })
+      } catch(err){
+        console.log(err)
+      }
+
+    } else {
+      alert('Invalid values')
+    }
     //let correctAddress =await Web3.utils.toChecksumAddress(keyMaster);
-    const cleanBet = Web3.utils.toWei(betValue, 'ether')
-    await factoryInstance.methods.createBet(reason, keyMaster, fee).send({from:accounts[0], gas:3000000, value:cleanBet})
+
 
   }
 
@@ -111,8 +156,8 @@ class App extends Component {
 
   renderBets(){
     const {allBets} = this.state;
-    console.log(allBets)
-    console.log('inside render bets', this.state.accounts)
+    // console.log(allBets)
+    // console.log('inside render bets', this.state.accounts)
     return allBets.map((i, k) => {
       
       return(
@@ -151,8 +196,11 @@ class App extends Component {
       return (
         <Layout address={this.state.syncedAddress}>
           <Form onSubmit={this.onSubmit}>
-            <Segment raised>
-              <Header as ='h3' block textAlign="center">Create new Bet</Header>
+            <Segment  raised>
+              <Segment.Group>
+                <Header as ='h3' id='mainHeaders' block textAlign="center" >Create new Bet</Header>
+              </Segment.Group>
+              
             </Segment>
             
             <Form.Group widths="equal">
@@ -194,14 +242,15 @@ class App extends Component {
               key='amount'
               id="form-input-control-bet-size"
               control={Input}
-              min='0.00001'
+              min='.000001'
+              step='0.000001'
               type='number'
               value={this.state.betValue}
               onChange={event => this.setState({betValue:event.target.value})}
               content="Bet size"
               label="Bet size"
             />
-            <Button color='red'>Go</Button>
+            <Button color='red'>Create</Button>
             </Form.Group>
           
           </Form>
@@ -209,7 +258,7 @@ class App extends Component {
           
             <Segment>
               <Segment.Group raised>
-                <Header as='h3' block textAlign='center'>
+                <Header id='mainHeaders' as='h3' block textAlign='center'>
                   Current Bets
                 </Header>
               </Segment.Group>
