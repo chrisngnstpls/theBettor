@@ -25,3 +25,7 @@ yarn-error.log*
 .env
 .vscode
 /bkp
+/client/node_modules
+/client/.env
+/client/src/App.jsx
+/truffle/node_modules

@@ -1,0 +1,15 @@
+{
+  "name": "Bettor contracts",
+  "version": "0.1.0",
+  "description": "The Bettor is a P2P betting platform with third party validation",
+  "main": "truffle-config.js",
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.7.3",
+    "@truffle/hdwallet-provider": "^2.0.10"
+  },
+  "scripts": {
+    "test": "truffle test"
+  },
+  "author": "",
+  "license": "MIT"
+}
