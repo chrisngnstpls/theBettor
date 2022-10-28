@@ -1,6 +1,6 @@
 
 import React, {Component} from 'react'
-import {Modal, Header, Button, Icon, Table, Form, Input, Label, Segment, TableBody, TableCell, TableRow, Menu} from 'semantic-ui-react'
+import {Modal, Header, Button, Icon, Table, Form, Input, Label, Segment, TableBody, TableCell, TableRow, Menu, Dropdown} from 'semantic-ui-react'
 import Bet from '../contracts/Bet.json'
 import getWeb3 from '../ethereum/web3'
 import Web3 from 'web3'
@@ -29,6 +29,8 @@ class BetModal extends Component {
             contractBalance:0,
             betStatus:null,
             betReason:'',
+            cancelInitiator:null,
+            cancelAcceptor:null
             
         }
     }
@@ -38,6 +40,7 @@ class BetModal extends Component {
         let finalValue = Web3.utils.fromWei(_value, 'ether');
         return await finalValue;
     }
+
     /**
      * Storage reading : 
      * [0] blockunbmer
@@ -65,7 +68,6 @@ class BetModal extends Component {
         
         let _initiatorAddress = await web3.eth.getStorageAt(this.state.contractLocation, 1, (err,res) => {
             if(err) throw err;
-            // let _res = Web3.utils.
             return res;
         });
         let _acceptorAddress = await web3.eth.getStorageAt(this.state.contractLocation, 2, (err,res) => {
@@ -74,34 +76,52 @@ class BetModal extends Component {
         });
         let _keyMasterAddress = await web3.eth.getStorageAt(this.state.contractLocation, 6, (err,res) => {
             if(err) throw err;
-            //console.log(res)
             return res
         });
 
+        let cancelStausInit = await web3.eth.getStorageAt(this.state.contractLocation, 7, (err,res) => {
+            if(err) throw err;
+            return res
+        })
+        let cancelStatusAccept = await web3.eth.getStorageAt(this.state.contractLocation, 8, (err,res) => {
+            if(err) throw err;
+            return res
+        })
+
+        let initClean = _initiatorAddress.length >= 40 ? _initiatorAddress.replace('000000000000000000000000', '') : _initiatorAddress
+        let acceptorClean = _acceptorAddress.length >= 40 ? _acceptorAddress.replace('000000000000000000000000', '') : _acceptorAddress
+        let keymasterClean = _keyMasterAddress.length >= 40 ? _keyMasterAddress.replace('000000000000000000000000', '') : _keyMasterAddress
+        let initCancel = Web3.utils.hexToNumberString(cancelStausInit)
+        let acceptCancel = Web3.utils.hexToNumberString(cancelStatusAccept)
         this.setState({ 
             betInstance:_betInstance, 
             contractBalance:finalValue, 
             betReason:_betReason, 
-            initiator:_initiatorAddress,
-            acceptor:_acceptorAddress,
-            keymasterAddress:_keyMasterAddress
+            initiator:initClean,
+            acceptor:acceptorClean,
+            keymasterAddress:keymasterClean,
+            cancelInitiator:initCancel,
+            cancelAcceptor:acceptCancel
         })
         this.getBetStatus()
     }
+
+
 
     confirmClick = (event, data) => {
         //console.log('state values : ' + this.state.betWinner)
         this.props.handleClose();
     }
     resolveBet = (event, data) => {
-        console.log(this.state.myaddress)
+        console.log(this.state.cancelInitiator, this.state.cancelAcceptor)
         
     }
 
     acceptBet = async (event, data) => {
         try{
             //console.log(this.props)
-            await this.state.betInstance.methods.acceptBet().send({from:this.props.syncedAddress[0], gas:this.state.gas, value:this.state.contractBalance})
+            let stringValue = Web3.utils.toWei(this.state.contractBalance)
+            await this.state.betInstance.methods.acceptBet().send({from:this.props.syncedAddress[0], gas:this.state.gas, value:stringValue})
             .on('transactionHash', (hash) => {
                 console.log('transaction hash : ', hash)
 
@@ -119,9 +139,13 @@ class BetModal extends Component {
     agreedCancel = async(event, data) => {
         try{
             //console.log(this.state.gas)
-            await this.state.betInstance.methods.agreedCancel().call({from:this.props.syncedAddress[0], gas:this.state.gas})
-            .then((result) => {
-                console.log(result)
+            await this.state.betInstance.methods.agreedCancel().send({from:this.props.syncedAddress[0]})
+            .on('transactionHash', (hash) => {
+                console.log('transaction hash : ', hash)
+
+            })
+            .on('error', (err) => {
+                console.log('error : ',err )
             })
         } catch(err){
             alert(await err.message)
@@ -129,11 +153,18 @@ class BetModal extends Component {
 
     }
 
-    revertBet = async(event,data) => {
+    revertBet = (event,data) => {
         try{
-            await this.state.betInstance.methods.revertBet().call({gas:this.state.gas})
+            this.state.betInstance.methods.revertBet().send({from:this.props.syncedAddress[0],gas:this.state.gas})
+            .on('transactionHash', (hash) => {
+                console.log('transaction hash : ', hash)
+
+            })
+            .on('error', (err) => {
+                console.log('error : ',err )
+            })
         } catch(err){
-            alert(await err.message)
+            alert( err.message)
         }
 
     }
@@ -180,6 +211,21 @@ class BetModal extends Component {
     render() {
         const {Cell, Row} = Table
         const acceptor = this.state.acceptor
+
+        const dropDownOptions = [
+            {
+                key:'initiatorOption',
+                text:'Initiator',
+                value:this.state.initiator
+            },
+            {
+                key:'acceptorOption',
+                text:'Acceptor',
+                value:this.state.acceptor
+            }
+        ]
+
+        
         return (
             <Modal
                 open={this.props.modalOpen}
@@ -209,7 +255,7 @@ class BetModal extends Component {
                         <Header as={'h4'}>Initiator : {this.state.initiator}</Header>
                     </Segment.Group>
                     <Segment.Group style={{padding:'3px'}}>
-                        <Header as={'h4'}>Acceptor : {acceptor == '0x0' ? 'Not yet accepted' : this.state.acceptor}</Header>
+                        <Header as={'h4'}>Acceptor : {this.state.acceptor == '0x0000000000000000000000000000000000000000' ? 'Not yet accepted' : this.state.acceptor.replace('000000000000000000000000', '')}</Header>
                     </Segment.Group>
                     <Segment.Group style={{padding:'3px'}}>
                         <Header as={'h4'}>KeyMaster : {this.state.keymasterAddress}</Header>
@@ -220,15 +266,28 @@ class BetModal extends Component {
                             <Table celled columns={4}>
                                 <Table.Body style={{overflow:'auto'}}>
                                     <Table.Row  mobile={16} tablet={8} computer={5} textAlign='center'>
-                                        <Table.Cell><Button color='green' onClick={this.acceptBet}>Accept Bet</Button></Table.Cell>
-                                        <Table.Cell><Button color = 'yellow' onClick={this.agreedCancel}>Aggreed Cancel</Button></Table.Cell>
+                                        <Table.Cell>
+                                            <Button color='green' onClick={this.acceptBet}>Accept Bet</Button>
+                                        </Table.Cell>
+                                        
+                                        <Table.Cell>
+                                            <Segment>
+                                                <Segment.Group style={{padding:'10px'}}>
+                                                    <Header as={'h4'}> Bet parties </Header>
+                                                    <p>Initiator : {this.state.cancelInitiator == 0 ? <p style={{color:'green'}}>Not canceled</p> :  <p style={{color:'red'}}>Has canceled</p>}</p>
+                                                    <p>Acceptor : {this.state.cancelInitiator == 0 ?  <p style={{color:'green'}}>Not canceled</p> :  <p style={{color:'red'}}>Has canceled</p>}</p>
+                                                </Segment.Group>
+                                                    <Button color = 'yellow' onClick={this.agreedCancel}>Aggreed Cancel</Button>
+                                            </Segment>
+                                            
+                                        </Table.Cell>
                                         
                                         <Table.Cell>                                    
                                         <Form onSubmit={this.resolveBet}> 
                                         <Segment >
                                         <Header id='winnerHeader' as={'h4'}>Bet Winner</Header>                 
                                             <Form.Group widths="equal"> 
-                                                <Form.Field
+                                                {/*<Form.Field
                                                     id="form-input-control-betWinner"
                                                     value={this.state.betWinner}
                                                     type='text'
@@ -236,7 +295,16 @@ class BetModal extends Component {
                                                     maxLength='42'
                                                     placeholder='0x00...00'
                                                     onChange={event => this.setState({betWinner:event.target.value})}
-                                                />   
+                                                />*/}
+                                                <Dropdown
+                                                    placeholder='Select Winner'
+                                                    fluid
+                                                    selection
+                                                    options={dropDownOptions}
+                                                    value={this.state.betWinner}
+                                                    onChange={(event,{value}) => this.setState({betWinner:value})}
+                                                    
+                                                /> 
                                                 </Form.Group>
                                                 </Segment>
                                                 <Segment><Button color='red'>Resolve Bet</Button></Segment>
@@ -244,7 +312,10 @@ class BetModal extends Component {
                                         </Table.Cell>
                                     </Table.Row>
                                     <Table.Row textAlign='center'>
-                                        <Table.Cell><Button onClick={this.revertBet}>Revert Bet</Button></Table.Cell>
+                                        <Table.Cell>
+                                            <Button onClick={this.revertBet}>Revert Bet</Button>
+                                        </Table.Cell>
+                                        
                                         <Table.Cell>
                                             <Table.Row>
                                                 <Table.Cell>
@@ -268,11 +339,6 @@ class BetModal extends Component {
                                         </Table.Cell>
                                     </Table.Row>
                                     <Table.Row textAlign='center'>
-                                    <Table.Cell></Table.Cell>
-                                        <Table.Cell>
-                                            <Button onClick={this.keyMasterSign}>I am the key master</Button>
-                                        </Table.Cell>
-                                    <Table.Cell></Table.Cell>
                                     </Table.Row>
                                 </Table.Body>
                             </Table>

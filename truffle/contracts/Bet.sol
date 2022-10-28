@@ -96,6 +96,8 @@ contract Bet {
             } else if(msg.sender == acceptor){
                 acceptorCanceled = 1;
             }
+        } else {
+            revert('You have already voted');
         }
     }
 
