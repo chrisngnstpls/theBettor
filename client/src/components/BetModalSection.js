@@ -1,7 +1,6 @@
-import react, {Component} from 'react';
-
+import {Component} from 'react';
 import BetModal from './BetModal';
-import { Button, Grid } from 'semantic-ui-react';
+import { Button } from 'semantic-ui-react';
 
 
 class BetModalSection extends Component {
@@ -18,7 +17,10 @@ class BetModalSection extends Component {
             key:props.rowKey,
             web3:props.web3,
             contractLocation : props.location,
-            gas:props.gas
+            gas:props.gas,
+            status:props.status,
+            reason:props.reason,
+            balance:props.balance
         }
 
     }
@@ -42,6 +44,9 @@ class BetModalSection extends Component {
                     initiator={this.state.initiator}
                     syncedAddress = {this.props.myAddress}
                     contractLocation = {this.state.contractLocation}
+                    status = {this.props.status}
+                    reason = {this.props.reason}
+                    balance = {this.props.balance}
                     gas={this.state.gas}
                     handleClose={
                         ()=> {

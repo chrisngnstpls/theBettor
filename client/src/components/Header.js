@@ -1,8 +1,9 @@
-import React,{Component, useEffect} from "react"
+import React from "react"
 import { Menu } from "semantic-ui-react"
 import './Header.css'
 
 const HeaderComponent = (props) => {
+
     return (
         <Menu pointing secondary style = {{marginTop : '10px'}}>
             <Menu.Item>

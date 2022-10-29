@@ -1,5 +1,5 @@
 import React, { Component } from 'react'
-import { Form, Input, Button,Table,Header, Loader, Segment, Container } from 'semantic-ui-react'
+import { Form, Input, Button,Table,Header, Card, Segment, Container, Image } from 'semantic-ui-react'
 import './App.css';
 import getWeb3 from './ethereum/web3';
 import BetFactory from './contracts/BetFactory.json'
@@ -7,6 +7,7 @@ import Bet from './contracts/Bet.json'
 import BetRow from './components/BetRow';
 import Web3 from 'web3';
 import Layout from './components/Layout';
+import BetModel from './models/BetModel';
 
 
 
@@ -69,6 +70,11 @@ class App extends Component {
   
   }
 
+  connectWallet = async(event) => {
+    await window.ethereum.enable().then(()=>{window.location.reload()})
+
+  }
+
   onSubmit = async (event) =>{
 
     event.preventDefault();
@@ -85,7 +91,7 @@ class App extends Component {
        }
     }
 
-    if((keyMaster != 0x0000000000000000000000000000000000000000) && (checkLength(reason)) && (betValue > 0.00001) && correctAddress) {
+    if((keyMaster !== 0x0000000000000000000000000000000000000000) && (checkLength(reason)) && (betValue > 0.00001) && correctAddress) {
       
       try {
         const cleanBet = Web3.utils.toWei(betValue, 'ether')
@@ -113,23 +119,43 @@ class App extends Component {
 
 
   getAllBets = async () => {
-    function Bet(_id, _location, _initiator){
-      this.id = _id
-      this.location = _location
-      this.initiator = _initiator
-
-    }
+    // function Bet(_id, _location, _initiator, _balance, _reason, _status){
+    //   this.id = _id
+    //   this.location = _location
+    //   this.initiator = _initiator
+    //   this.balance = _balance
+    //   this.reason = _reason
+    //   this.status = _status
+    // }
     
-    const{allBets,gas,factoryInstance} = this.state;
+    const{allBets,gas,factoryInstance,web3} = this.state;
     
     let _allBets = await factoryInstance.methods.allBets().call({gas:gas})
     let betListLength = _allBets.length
+    let cleanStatus;
+    
+    
     for (let i = 0; i<betListLength; i++){
-      let _bet = new Bet(_allBets[i].betIndex, _allBets[i].location, _allBets[i].initiator)
+      let betDetails = new web3.eth.Contract(Bet.abi, _allBets[i].location)
+      let _contractBalance = await betDetails.methods.getBalance().call({gas:this.state.gas})
+      let _betStatus = await betDetails.methods.getBetStatus().call({gas:this.state.gas})
+      let _betReason = await betDetails.methods.reason().call({gas:this.state.gas})
+      let ethBalance = Web3.utils.fromWei(_contractBalance, 'ether')
+      
+      if (_betStatus === '0'){
+          cleanStatus = 'Initiated'
+          } else if (_betStatus === '1'){
+              cleanStatus = 'Running'
+          } else if (_betStatus === '2'){
+              cleanStatus = 'Resolved'
+      }
+      
+      let _bet = new BetModel(_allBets[i].betIndex, _allBets[i].location, _allBets[i].initiator,ethBalance,_betReason,cleanStatus)
+      
       allBets.push(_bet)
     }
     this.setState({allBets})
-    //console.log(allBets)
+
   }
   
   handleFromParent = async (location) => {
@@ -163,12 +189,14 @@ class App extends Component {
       
       return(
         <BetRow
-          
           positive
           key={k}
           id={i.id}
           location={i.location}
           initiator={i.initiator}
+          balance={i.balance}
+          reason={i.reason}
+          status={i.status}
           accounts = {this.state.accounts}
           handleFromParent={this.handleFromParent}
           web3={this.state.web3}
@@ -180,22 +208,33 @@ class App extends Component {
 
 
   render() {
-    const{Row, HeaderCell, Body} = Table;
     const {allBets} = this.state;
-    if(!this.state.web3){
+    if(this.state.accounts == null){
       
       return (
-          <div>
-            <Segment>
-              <Loader>Loading Web 3 components</Loader>
+            <Segment raised placeholder className='segment centered'>
+              <Segment.Group style={{padding:'10px'}}>
+              <Card centered>
+              <Image alt='logo' src="./pepeLoad.png"/>
+              <Card.Content>
+                <Card.Header>theBettor</Card.Header>
+                <Card.Meta>bet a fren</Card.Meta>
 
+                <Card.Description>
+                  The fastest way to lose your money on silly bets
+                </Card.Description>
+              </Card.Content>
+              <Card.Content>
+                <Button onClick={this.connectWallet}>Connect</Button>
+              </Card.Content>
+              </Card>
+              </Segment.Group>
             </Segment>
-          </div>
         )
     
     } else if(this.state.web3) {
       return (
-        <Layout address={this.state.syncedAddress}>
+        <Layout address={this.state.syncedAddress} web3={this.state.web3}>
           <Form onSubmit={this.onSubmit}>
             <Segment  raised>
               <Segment.Group>
@@ -231,7 +270,7 @@ class App extends Component {
               key='fee'
               id="form-input-control-fee"
               control = {Input}
-              label = "Fee"
+              label = "Keymaster Fee"
               placeholder="fee"
               type='number'
               min='0'
@@ -243,6 +282,7 @@ class App extends Component {
               key='amount'
               id="form-input-control-bet-size"
               control={Input}
+              placeholder=''
               min='.000001'
               step='0.000001'
               type='number'
@@ -270,8 +310,10 @@ class App extends Component {
                 <Table.Header>
                   <Table.Row textAlign='center'>
                     <Table.HeaderCell colSpan='1' key='id' textAlign='center'>ID</Table.HeaderCell>
-                    <Table.HeaderCell colSpan='1' key='location'textAlign='center'>Location</Table.HeaderCell>
                     <Table.HeaderCell colSpan='1' key='initiator'textAlign='center'>Initiator</Table.HeaderCell>
+                    <Table.HeaderCell colSpan='1' key='reason'textAlign='center'>Reason</Table.HeaderCell>
+                    <Table.HeaderCell colSpan='1' key='balance'textAlign='center'>Balance</Table.HeaderCell>
+                    <Table.HeaderCell colSpan='1' key='status'textAlign='center'>Status</Table.HeaderCell>
                     <Table.HeaderCell colSpan='1' key='nana'textAlign='center'> 🍌</Table.HeaderCell>
                   </Table.Row>
                 </Table.Header>
